@@ -1,11 +1,11 @@
 # timbre-json-output-fn
 
 A library for structured json logging for easy integration with log
- engine such as [datadog], AWS cloudwatch, GCP stackdriver. 
+ engine such as [datadog](https://docs.datadoghq.com/logs/log_collection/?tab=http#send-your-application-logs-in-json), AWS cloudwatch, GCP stackdriver. 
  
  Inspired
- by [timbre-json-appender](https://github.com/viesti/timbre-json-appender) and
- improves on it in a backward compatible way and makes it more robust and
+ by [timbre-json-appender](https://github.com/viesti/timbre-json-appender)
+It improves on it in a backward compatible way and makes it more robust and
   consistent. 
   
  > Note that this library provides an `output-fn` instead of an `appender`. This
@@ -51,8 +51,8 @@ user=> (log/info "Task done" :duration 5)
  :ns "curbside.timbre-json-output-fn.core-test"}
 ```
 
-See [tests](test/curbside/timbre_json_logs) for a rundown of the spec
- 
+See [tests](test/curbside/timbre-json-output-fn) for a rundown of the spec
+
 ## Deployment
 
 Deployments are automatically deployed to 
