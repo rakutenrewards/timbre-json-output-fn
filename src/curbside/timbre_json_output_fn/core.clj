@@ -24,12 +24,11 @@
 
 (defn handle-vargs
   "Handles formatting :msg and :args"
-  [log-map ?msg-fmt vargs]
+  [?msg-fmt vargs]
   (cond
     ?msg-fmt (let [format-specifiers (tjs/count-format-specifiers ?msg-fmt)]
-               (assoc log-map
-                 :msg (String/format ?msg-fmt (to-array (take format-specifiers vargs)))
-                 :args (format-args (drop format-specifiers vargs))))
+               {:msg (String/format ?msg-fmt (to-array (take format-specifiers vargs)))
+                :args (format-args (drop format-specifiers vargs))})
     :else (let [first-arg (first vargs)
                 first-arg-string? (string? first-arg)]
             (cond-> {:args (format-args (if first-arg-string? (rest vargs) vargs))}
@@ -40,17 +39,18 @@
 (defn json-output-log-map
   "Creates a log map for json serialization"
   [{:keys [instant level ?ns-str ?file ?line ?err vargs ?msg-fmt]}]
-  (let [log-map (handle-vargs {:timestamp instant
-                               :level level
-                               :thread (.getName (Thread/currentThread))}
-                              ?msg-fmt
-                              vargs)
-        log-map (cond-> (assoc log-map
-                          :ns ?ns-str
-                          :file-line (str ?file ":" ?line)
-                          :file ?file
-                          :line ?line)
+  (let [msg-args (handle-vargs ?msg-fmt
+                               vargs)
+        log-map (cond-> (merge msg-args
+                               {:timestamp instant
+                                :level level
+                                :thread (.getName (Thread/currentThread))
+                                :ns ?ns-str
+                                :file-line (str ?file ":" ?line)
+                                :file ?file
+                                :line ?line})
                   ?err (assoc
+                         :level "error"
                          :err (Throwable->map ?err)
                          :stacktrace (log/stacktrace ?err {:stacktrace-fonts {}})))]
     log-map))

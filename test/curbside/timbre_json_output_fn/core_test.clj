@@ -62,9 +62,10 @@
       (is (= ["role"] args)))))
 
 (deftest exception-ex-info-data-serializable
-  (testing "When there's an exception info throwned with data, the serializable data is available for inspection"
+  (testing "When there's an exception info throwned with data, the serializable data is available for inspection and the log level is error"
     (let [data {:a 10}
-          {:keys [err]} (parse-string (with-out-str (log/info (ex-info "poks" data))))]
+          {:keys [err level]} (parse-string (with-out-str (log/info (ex-info "poks" data))))]
+      (is (= level "error"))
       (is (= data (:data err))))))
 
 (deftest exception-stacktrace
@@ -96,6 +97,15 @@
     (is (= "a msg" msg))))
 
 (deftest a-msg-and-a-vector-of-map
-  (let [{:keys [args msg]} (parse-string (with-out-str (log/info "a msg" [{:status 200 :duration 5}])))]
+  (let [{:keys [args msg level]} (parse-string (with-out-str (log/info "a msg" [{:status 200 :duration 5}])))]
+    (is (= "info" level))
     (is (= [{:status 200 :duration 5}] (first args)))
     (is (= "a msg" msg))))
+
+(deftest a-warn-log
+  (testing "When logging is warn, level is warn"
+    (let [{:keys [args msg level]} (parse-string (with-out-str (log/warn "Scary stuff" [{:status 404 :duration 5}])))]
+      (is (= "warn" level))
+      (is (= [{:status 404 :duration 5}] (first args)))
+      (is (= "Scary stuff" msg)))))
+
