@@ -51,7 +51,7 @@ user=> (log/info "Task done" :duration 5)
  :ns "curbside.timbre-json-output-fn.core-test"}
 ```
 
-See [tests](test/curbside/timbre-json-output-fn) for a rundown of the spec
+See [tests](test/curbside/timbre_json_output_fn) for a rundown of the spec
 
 ## Deployment
 
