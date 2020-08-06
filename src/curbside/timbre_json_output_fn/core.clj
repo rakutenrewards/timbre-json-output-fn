@@ -5,13 +5,13 @@
    [taoensso.timbre.appenders.core :refer [spit-appender]]
    [timbre-json-appender.core :as tjs]))
 
-(defn even-keywords?
+(defn- even-keywords?
   "Verifies if every 2 argument is a keyword.
   For instance `(log/info :keyword1 10 :keyword2 30)`"
   [vargs]
   (every? keyword? (take-nth 2 vargs)))
 
-(defn format-args
+(defn- format-args
   "Handles formatting :args according to the variable args passed to the logging statement"
   [args]
   (cond
@@ -22,44 +22,64 @@
     ;; otherwise just pass the structure as-is without manipulation
     :else args))
 
-(defn handle-vargs
+(defn- handle-vargs
   "Handles formatting :msg and :args"
   [?msg-fmt vargs]
   (cond
     ?msg-fmt (let [format-specifiers (tjs/count-format-specifiers ?msg-fmt)]
-               {:msg (String/format ?msg-fmt (to-array (take format-specifiers vargs)))
+               {:message (String/format ?msg-fmt (to-array (take format-specifiers vargs)))
                 :args (format-args (drop format-specifiers vargs))})
     :else (let [first-arg (first vargs)
                 first-arg-string? (string? first-arg)]
             (cond-> {:args (format-args (if first-arg-string? (rest vargs) vargs))}
-              first-arg-string? (assoc :msg first-arg)))))
+              first-arg-string? (assoc :message first-arg)))))
 
 (def ^:private object-mapper (tjs/object-mapper {:pretty false}))
 
-(defn json-output-log-map
-  "Creates a log map for json serialization"
-  [{:keys [instant level ?ns-str ?file ?line ?err vargs ?msg-fmt]}]
-  (let [msg-args (handle-vargs ?msg-fmt
-                               vargs)
-        log-map (cond-> (merge msg-args
+(defn- stacktrace-text
+  "Logs textual representation of a stacktrace.
+  Turn off colors in output by passing empty dict to stacktrace-fonts
+  https://github.com/ptaoussanis/timbre#disabling-stacktrace-colors"
+  [err]
+  (log/stacktrace err {:stacktrace-fonts {}}))
+
+(defn format-error
+  "Formats error according to datadog's best practices.
+  In addition, it contains a :map attribute for further inspection of the error"
+  [err]
+  (let [exception-map (Throwable->map err)]
+    {:stack (stacktrace-text err)
+     :message (.getMessage err)
+     :kind (-> exception-map :via first :type)
+     :map exception-map}))
+
+(defn- json-output-log-map
+  "Creates a log map for json serialization
+  snake case on the keys is on purpose
+  refer to datadog best practices
+  https://docs.datadoghq.com/logs/log_collection/?tab=http#how-to-get-the-most-of-your-application-logs"
+  [logger-name {:keys [instant level ?ns-str ?file ?line ?err vargs ?msg-fmt]}]
+  (let [message-args (handle-vargs ?msg-fmt
+                                   vargs)
+        log-map (cond-> (merge message-args
                                {:timestamp instant
+                                :logger {:name logger-name
+                                         :thread_name (.getName (Thread/currentThread))}
                                 :level level
-                                :thread (.getName (Thread/currentThread))
                                 :ns ?ns-str
-                                :file-line (str ?file ":" ?line)
+                                :file_line (str ?file ":" ?line)
                                 :file ?file
                                 :line ?line})
                   ?err (assoc
                          :level "error"
-                         :err (Throwable->map ?err)
-                         :stacktrace (log/stacktrace ?err {:stacktrace-fonts {}})))]
+                         :error (format-error ?err)))]
     log-map))
 
-(defn json-output-fn
+(defn make-json-output-fn
   "Creates an output fn that will log in json
 This was sourced from the timbre-json-appender plugin
 and modified to remove the side-effect (println) so
 that it can be used as an output-fn and all appenders
 can benefit from it"
-  [args]
-  (json/write-value-as-string (json-output-log-map args) object-mapper))
+  ([logger-name] (fn [args] (json/write-value-as-string (json-output-log-map logger-name args) object-mapper)))
+  ([] (make-json-output-fn "json-logger")))
