@@ -56,8 +56,7 @@
 (defn- json-output-log-map
   "Creates a log map for json serialization
   snake case on the keys is on purpose
-  refer to datadog best practices
-  https://docs.datadoghq.com/logs/log_collection/?tab=http#how-to-get-the-most-of-your-application-logs"
+  refer to datadog best practices (readme)"
   [logger-name {:keys [instant level ?ns-str ?file ?line ?err vargs ?msg-fmt]}]
   (let [message-args (handle-vargs ?msg-fmt
                                    vargs)
