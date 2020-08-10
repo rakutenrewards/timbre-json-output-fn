@@ -6,25 +6,62 @@ A library for structured json logging for easy integration with log
  Inspired
  by [timbre-json-appender](https://github.com/viesti/timbre-json-appender)
 It improves on it in a backward compatible way and makes it more robust and
-  consistent. 
-  
- > Note that this library provides an `output-fn` instead of an `appender`. This
+  consistent. It provides an `output-fn` instead of an `appender`. This
   makes it more flexible to integrate with existing appenders configured in a
     service. Since this implementation is a pure function returning the
  structure, is is possible to combine json logging and pipe it into any
  appenders such as standard output or text file.
  
-In summary, what this lib does:
- - `:msg` is included only when the first argument is a string. This covers
-  most existing logging scenarios.
+## Installation
+
+To include this library in a dependent project, include the following in the
+ `:repositories` of the `project.clj`
+
+```clojure
+:repositories [["RakutenReady/timbre-json-output-fn"
+                {:url "https://maven.pkg.github.com/RakutenReady/timbre-json-output-fn"
+                 :username [:gpg :env/github_actor]
+                 :password [:gpg :env/github_token]}]]
+``` 
+
+Add the following dependency to your `project.clj`:
+
+```clojure
+[curbside/timbre-json-output-fn "1.0.0-SNAPSHOT"]
+```
+
+Add the `output-fn` in your 
+[timbre configuration](https://github.com/ptaoussanis/timbre#configuration). 
+This is an example usage that would output json logs to both stdout and a file:
+
+```clojure
+(:require
+  [taoensso.timbre :as log]
+  [taoensso.timbre.appenders.core :refer [spit-appender]]
+  [curbside.timbre-json-output-fn.core :refer [make-json-output-fn]])
+
+(log/merge-config!
+  {:appenders {:println {:enabled? true}
+               :spit (spit-appender {:fname "/path/my-file.log"})}
+   :output-fn (make-json-output-fn)})
+```
+
+## Output structure
+In general, this library adapts to 
+[datadog's recommendations](https://docs.datadoghq.com/logs/log_collection/?tab=http#how-to-get-the-most-of-your-application-logs) as to how to
+ layout the structured logs. From your log statements, it will output a
+  standardized structure:
+ - `message` is included only when the first argument is a string. 
+  This covers most existing logging scenarios.
    ```
    (log/info "HTTP Request")
    (log/infof "HTTP %s" "Request")
    ```  
-    will both yield `{:msg "HTTP Request" ...}`
- - `:file-line` is given as a parameter to easily segment the log
-  origin from other logs. `{:file-line  "path/to/file:35" ...}`
- - `:args` is a map meant to be easily queryable by the log engine. There's a
+    will both yield `{:message "HTTP Request" ...}`
+     > In datadog this maps to the `content` column and is already enabled
+     for full text search
+   
+ - `args` is a map meant to be easily queryable by the log engine. There's a
   couple of ways to accomplish this: 
    ```
    (log/info :status 200 :duration 10)
@@ -33,11 +70,18 @@ In summary, what this lib does:
    (log/info {:status 200 :duration 10})
    ```
    will all yield `{:args {:status 200 :duration 10} ...}`
- - When an exception occurs, the structured stacktrace contained in `:err` is
-  useful for introspecting data and underlying causes of the stacktrace. When
-   exception occured from an `ex-info`, the data provided is also available
-    in the structure. It is also often easier to read the textual version now 
-    contained in `:stacktrace`. 
+    
+ - When an exception occurs, a stacktrace structure is available in `error` 
+ attribute where :
+   - `error.stack` is the actual stacktrace in text format
+   - `error.message` is the error message contained in the stack trace
+   - `error.kind` is the throwable class `java.lang.Exception`, `clojure.lang
+   .ExceptionInfo`
+   - `error.data` is the data representation of the exception from 
+   [`Throwable->map`](https://clojuredocs.org/clojure.core/Throwable-%3Emap)
+   for further inspection
+
+![error logs](doc/error_log.png)
 
 ## Examples
 
@@ -45,9 +89,9 @@ In summary, what this lib does:
 user=> (log/info "Task done" :duration 5)
 {:args {:duration 5}
  :file "[...]/test/curbside/timbre_json_logs/core_test.clj"
- :file-line "[...]/test/curbside/timbre_json_logs/core_test.clj:28"
+ :file_line "[...]/test/curbside/timbre_json_logs/core_test.clj:28"
  :line 28
- :msg "Task done"
+ :message "Task done"
  :ns "curbside.timbre-json-output-fn.core-test"}
 ```
 
@@ -66,15 +110,3 @@ To trigger a release version increase in the project
 ```
 lein release
 ```
-
-## Require this lib
-
-To include this library in a dependent project, include the following in the
- `:repositories` of the `project.clj`
-
-```clojure
-:repositories [["RakutenReady/timbre-json-output-fn"
-                {:url "https://maven.pkg.github.com/RakutenReady/timbre-json-output-fn"
-                 :username [:gpg :env/github_actor]
-                 :password [:gpg :env/github_token]}]]
-``` 

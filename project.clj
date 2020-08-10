@@ -1,4 +1,4 @@
-(defproject curbside/timbre-json-output-fn "0.1.3-SNAPSHOT"
+(defproject curbside/timbre-json-output-fn "1.0.0-SNAPSHOT"
   :description "Standardized structured logging for datadog"
   :url "http://github.com/RakutenReady/timbre-json-output-fn"
 
@@ -15,6 +15,11 @@
                   ["change" "version" "leiningen.release/bump-version"]
                   ["vcs" "commit"]
                   ["vcs" "push"]]
+  :profiles {:dev {:source-paths ["dev"]
+                   :dependencies [[http-kit "2.4.0"]
+                                  [ring "1.8.0"]
+                                  [ring-logger "1.0.1"]
+                                  [compojure "1.6.1"]]}}
 
   :repositories [["github" {:url "https://maven.pkg.github.com/RakutenReady/timbre-json-output-fn"
                             :username :env/github_actor

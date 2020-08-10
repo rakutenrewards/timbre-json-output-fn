@@ -1,14 +1,14 @@
 (ns curbside.timbre-json-output-fn.core-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [jsonista.core :as json]
             [clojure.string :as string]
             [taoensso.timbre :as log]
             [taoensso.timbre.appenders.core :as appenders]
-            [curbside.timbre-json-output-fn.core :refer [json-output-fn]]))
+            [curbside.timbre-json-output-fn.core :refer [make-json-output-fn]]))
 
 (log/set-config! {:level :debug
                   :appenders {:println (appenders/println-appender {:stream :auto})}
-                  :output-fn json-output-fn})
+                  :output-fn (make-json-output-fn)})
 
 (def object-mapper (json/object-mapper {:decode-key-fn true}))
 
@@ -17,7 +17,7 @@
 
 ;; These tests below are sourced from timbre-json-appender test cases
 (deftest only-message
-  (is (= "Hello" (:msg (parse-string (with-out-str (log/info "Hello")))))))
+  (is (= "Hello" (:message (parse-string (with-out-str (log/info "Hello")))))))
 
 (deftest only-args
   (let [log (parse-string (with-out-str (log/info :status 200 :duration 5)))]
@@ -26,7 +26,7 @@
 
 (deftest message-and-args
   (let [log (parse-string (with-out-str (log/info "Task done" :duration 5)))]
-    (is (= "Task done" (:msg log)))
+    (is (= "Task done" (:message log)))
     (is (= 5 (-> log :args :duration)))))
 
 (deftest unserializable-value
@@ -36,45 +36,59 @@
                   :a))))
   (testing "in ExceptionInfo"
     (is (= {} (-> (parse-string (with-out-str (log/info (ex-info "poks" {:a (Object.)}))))
-                  :err
+                  :error
+                  :map
                   :data
                   :a)))))
 
 (deftest exception
   (is (= "poks" (-> (parse-string (with-out-str (log/info (Exception. "poks") "Error")))
-                    :err
+                    :error
+                    :map
                     :cause))))
 
 (deftest format-string
   (is (= "Hello World!" (-> (parse-string (with-out-str (log/infof "Hello %s!" "World")))
-                            :msg)))
+                            :message)))
   (let [log (parse-string (with-out-str (log/infof "%s %d%% ready" "Upload" 50 :role "admin")))]
     (is (= "Upload 50% ready"
-           (:msg log)))
+           (:message log)))
     (is (= {:role "admin"}
            (:args log)))))
 
 ;; Below is where our output format improves on timbre-json-appender...
+(deftest logger-information
+  (testing "Logger information is logged into logger.name and logger.thread_name"
+    (let [{:keys [logger]} (parse-string (with-out-str (log/info "dumb log")))]
+      (is (= "json-logger" (:name logger)))
+      (is (not-empty (:thread_name logger))))))
+
 (deftest format-string-odd-no-crash
   (testing "When logging with the format variant and an odd number of additional arguments, it handles gracefully"
-    (let [{:keys [args msg]} (parse-string (with-out-str (log/infof "%s %d%% ready" "Upload" 50 :role)))]
-      (is (= "Upload 50% ready" msg))
+    (let [{:keys [args message]} (parse-string (with-out-str (log/infof "%s %d%% ready" "Upload" 50 :role)))]
+      (is (= "Upload 50% ready" message))
       (is (= ["role"] args)))))
 
-(deftest exception-ex-info-data-serializable
-  (testing "When there's an exception info throwned with data, the serializable data is available for inspection and the log level is error"
-    (let [data {:a 10}
-          {:keys [err level]} (parse-string (with-out-str (log/info (ex-info "poks" data))))]
+(deftest exception-stacktrace-java
+  (testing "When there's an exception, error data is given in :stack :message :kind"
+    (let [{:keys [error level]} (parse-string (with-out-str (log/info (Exception. "poks") "Error")))
+          {:keys [stack message kind]} error
+          stacktrace-lines (-> stack (string/split #"\n"))]
       (is (= level "error"))
-      (is (= data (:data err))))))
-
-(deftest exception-stacktrace
-  (testing "When there's an exception, stacktraces are also included in a text column"
-    (let [stacktrace-lines (-> (parse-string (with-out-str (log/info (Exception. "poks") "Error")))
-                               :stacktrace
-                               (string/split #"\n"))]
+      (is (= "poks" message))
+      (is (= "java.lang.Exception" kind))
       (is (not-empty stacktrace-lines))
       (is (= "java.lang.Exception: poks" (last stacktrace-lines))))))
+
+(deftest exception-ex-info-data-serializable
+  (testing "When there's a clojure exception info throwned with data, the serializable data is available for inspection and the log level is error"
+    (let [data {:a 10}
+          {:keys [error level]} (parse-string (with-out-str (log/info (ex-info "poks" data))))
+          {:keys [stack message kind map]} error]
+      (is (= level "error"))
+      (is (= "poks" message))
+      (is (= "clojure.lang.ExceptionInfo" kind))
+      (is (= data (:data map))))))
 
 (deftest just-a-map
   (testing "When logging only a map object, make it the args structure"
@@ -83,29 +97,30 @@
       (is (= 5 (-> args :duration))))))
 
 (deftest a-msg-and-map
-  (let [{:keys [args msg]} (parse-string (with-out-str (log/info "a msg" {:status 200 :duration 5})))]
-    (is (= "a msg" msg))
+  (let [{:keys [args message]} (parse-string (with-out-str (log/info "a msg" {:status 200 :duration 5})))]
+    (is (= "a msg" message))
     (is (= {:duration 5
             :status 200} args))))
 
 (deftest a-msg-and-two-map
-  (let [{:keys [args msg]} (parse-string (with-out-str (log/info "a msg" {:status 200 :duration 5} {:status 300 :duration 10})))]
+  (let [{:keys [args message]} (parse-string (with-out-str (log/info "a msg" {:status 200 :duration 5} {:status 300 :duration 10})))]
     (is (= [{:duration 5
              :status 200}
             {:duration 10
              :status 300}] args))
-    (is (= "a msg" msg))))
+    (is (= "a msg" message))))
 
 (deftest a-msg-and-a-vector-of-map
-  (let [{:keys [args msg level]} (parse-string (with-out-str (log/info "a msg" [{:status 200 :duration 5}])))]
+  (let [{:keys [args message level]} (parse-string (with-out-str (log/info "a msg" [{:status 200 :duration 5}])))]
     (is (= "info" level))
     (is (= [{:status 200 :duration 5}] (first args)))
-    (is (= "a msg" msg))))
+    (is (= "a msg" message))))
 
 (deftest a-warn-log
   (testing "When logging is warn, level is warn"
-    (let [{:keys [args msg level]} (parse-string (with-out-str (log/warn "Scary stuff" [{:status 404 :duration 5}])))]
+    (let [{:keys [args message level]} (parse-string (with-out-str (log/warn "Scary stuff" [{:status 404 :duration 5}])))]
       (is (= "warn" level))
       (is (= [{:status 404 :duration 5}] (first args)))
-      (is (= "Scary stuff" msg)))))
+      (is (= "Scary stuff" message)))))
+
 
