@@ -46,6 +46,8 @@ This is an example usage that would output json logs to both stdout and a file:
    :output-fn (make-json-output-fn)})
 ```
 
+See [playground.clj](dev/playground.clj) for detailed example integrations.
+
 ## Output structure
 In general, this library adapts to 
 [datadog's recommendations](https://docs.datadoghq.com/logs/log_collection/?tab=http#how-to-get-the-most-of-your-application-logs) as to how to
@@ -77,7 +79,7 @@ In general, this library adapts to
    - `error.message` is the error message contained in the stack trace
    - `error.kind` is the throwable class `java.lang.Exception`, `clojure.lang
    .ExceptionInfo`
-   - `error.data` is the data representation of the exception from 
+   - `error.map` is the data representation of the exception from 
    [`Throwable->map`](https://clojuredocs.org/clojure.core/Throwable-%3Emap)
    for further inspection
 
@@ -110,3 +112,8 @@ To trigger a release version increase in the project
 ```
 lein release
 ```
+or 
+```
+lein release :segment
+```
+where `:segment` is `:major`, `:minor` or `:patch`
