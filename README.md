@@ -27,7 +27,7 @@ To include this library in a dependent project, include the following in the
 Add the following dependency to your `project.clj`:
 
 ```clojure
-[curbside/timbre-json-output-fn "1.0.0-SNAPSHOT"]
+[curbside/timbre-json-output-fn "1.0.0"]
 ```
 
 Add the `output-fn` in your 
@@ -60,7 +60,7 @@ In general, this library adapts to
    (log/infof "HTTP %s" "Request")
    ```  
     will both yield `{:message "HTTP Request" ...}`
-     > In datadog this maps to the `content` column and is already enabled
+     > In datadog, this maps to the `content` column and is already enabled
      for full text search
    
  - `args` is a map meant to be easily queryable by the log engine. There's a
@@ -73,7 +73,9 @@ In general, this library adapts to
    ```
    will all yield `{:args {:status 200 :duration 10} ...}`
     
- - When an exception occurs, a stacktrace structure is available in `error` 
+   > In datadog, those fields can be turned into facets for full text search
+
+ - When a throwable is logged, a stacktrace structure is available in `error` 
  attribute where :
    - `error.stack` is the actual stacktrace in text format
    - `error.message` is the error message contained in the stack trace
@@ -83,12 +85,42 @@ In general, this library adapts to
    [`Throwable->map`](https://clojuredocs.org/clojure.core/Throwable-%3Emap)
    for further inspection
 
+   ```
+   => (log/error (ex-info "Kaboom" {:stats 500}))
+   {
+      "args":{},
+      "ns":"playground",
+      "file":"[...].clj",
+      "file_line":"[...].clj:1",
+      "level":"error",
+      "line":1,
+      "logger":{
+         "name":"json-logger",
+         "thread_name":"nRepl-session-a0b629e8-7bec-4c24-8f5f-466727dc2a5f"
+      },
+      "error":{
+         "stack":"...",
+         "message":"Kaboom",
+         "kind":"clojure.lang.ExceptionInfo",
+         "map":{
+            "via":[...],
+            "trace":[...],
+            "cause":"Kaboom",
+            "data":{
+               "stats":500
+            }
+         }
+      },
+      "timestamp":"2020-08-10T17:25:16Z"
+   }
+   ```
+
 ![error logs](doc/error_log.png)
 
 ## Examples
 
 ```
-user=> (log/info "Task done" :duration 5)
+=> (log/info "Task done" :duration 5)
 {:args {:duration 5}
  :file "[...]/test/curbside/timbre_json_logs/core_test.clj"
  :file_line "[...]/test/curbside/timbre_json_logs/core_test.clj:28"
