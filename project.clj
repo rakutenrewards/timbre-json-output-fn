@@ -1,4 +1,4 @@
-(defproject curbside/timbre-json-output-fn "1.0.0"
+(defproject curbside/timbre-json-output-fn "1.0.1-SNAPSHOT"
   :description "Standardized structured logging for datadog"
   :url "http://github.com/RakutenReady/timbre-json-output-fn"
 
